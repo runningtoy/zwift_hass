@@ -305,8 +305,8 @@ class ZwiftPlayerData:
         return self.player_profile.get('zftp', None)
 
     @property
-    def zmax(self):
-        return self.player_profile.get('zmax', None)
+    def zmap(self):
+        return self.player_profile.get('zmap', None)
 
     @property
     def vo2max(self):
