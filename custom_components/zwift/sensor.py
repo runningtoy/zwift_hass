@@ -104,6 +104,10 @@ SENSOR_TYPES = {
     'gradient': {'name': 'Gradient', 'unit': '%', 'icon': 'mdi:image-filter-hdr'},
     'level': {'name': 'Level', 'icon': 'mdi:stairs'},
     'runlevel': {'name': 'Run Level', 'icon': 'mdi:run-fast'},
+    'ftp': {'name': 'FTP Setting', 'icon': 'mdi:level-up'},
+    'zftp': {'name': 'Current zFTP level', 'icon': 'mdi:level-up'},
+    'zmap': {'name': 'Current zMap level', 'icon': 'mdi:level-up'},
+    'vo2max': {'name': 'Current VO2max level', 'icon': 'mdi:level-up'},
     'cycleprogress': {'name': 'Cycle Progress', 'unit': '%', 'icon': 'mdi:transfer-right'},
     'runprogress': {'name': 'Run Progress', 'unit': '%', 'icon': 'mdi:transfer-right'},
 }
@@ -293,6 +297,22 @@ class ZwiftPlayerData:
         return self.player_profile.get('runLevel', None)
 
     @property
+    def ftp(self):
+        return self.player_profile.get('ftp', None)
+
+    @property
+    def zftp(self):
+        return self.player_profile.get('zftp', None)
+
+    @property
+    def zmax(self):
+        return self.player_profile.get('zmax', None)
+
+    @property
+    def vo2max(self):
+        return self.player_profile.get('vo2max', None)
+
+    @property
     def cycleprogress(self):
         return self.player_profile.get('cycleProgress', None)
 
@@ -364,6 +384,11 @@ class ZwiftData:
                 online_player = {}
                 try:
 
+                    from zwift.request import Request
+                    _request = Request(self._client.auth_token.get_access_token)
+                    power_profile = _request.json('/api/power-curve/power-profile')
+
+
                     _profile = self._client.get_profile(player_id)
                     player_profile = _profile.profile or {}
                     _LOGGER.debug(
@@ -372,6 +397,10 @@ class ZwiftData:
                         player_profile.get('totalExperiencePoints'))
                     player_profile['playerLevel'] = int(
                         player_profile.get('achievementLevel', 0) / 100)
+                    player_profile['ftp'] = int(player_profile.get('ftp', 0))
+                    player_profile['zftp'] = int(power_profile.get('zftp', 0))
+                    player_profile['zmap'] = int(power_profile.get('zmap', 0))
+                    player_profile['vo2max'] = int(power_profile.get('vo2max', 0))
                     player_profile['runLevel'] = int(
                         player_profile.get('runAchievementLevel', 0) / 100)
                     player_profile['cycleProgress'] = int(
