@@ -29,6 +29,11 @@ sensor:
 * Use your Zwift email address for `my_zwift_username` above.
 * `players:` should be a list of "player_id" numbers that you wish to track. 
   * Your own `player_id` will be automatically included unless you specify the `include_self` directive in your sensor config and set it to `false`
+* Put `my_zwift_username` and `my_zwift_password` in the `secrets.yaml` file.
+  ```
+  my_zwift_username: your_username@mailprovider.com
+  my_zwift_password: zwift_password
+  ```
 
 Events
 ===
