@@ -125,7 +125,6 @@ SENSOR_TYPES = {
     "hr": {"name": "Heart Rate", "unit": "bpm", "icon": "mdi:heart-pulse"},
     "speed": {
         "name": "Speed",
-        "unit": "mph",
         "unit_metric": "kmh",
         "icon": "mdi:speedometer",
     },
@@ -133,13 +132,11 @@ SENSOR_TYPES = {
     "power": {"name": "Power", "unit": "W", "icon": "mdi:flash"},
     "altitude": {
         "name": "Altitude",
-        "unit": "ft",
         "unit_metric": "cm",
         "icon": "mdi:altimeter",
     },
     "distance": {
         "name": "Distance",
-        "unit": "miles",
         "unit_metric": "m",
         "icon": "mdi:arrow-expand-horizontal",
     },
@@ -262,11 +259,7 @@ class ZwiftSensorDevice(Entity):
     @property
     def unit_of_measurement(self):
         """Return the unit this state is expressed in."""
-        if self._zwift_data.is_metric:
-            return SENSOR_TYPES[self._type].get("unit_metric") or SENSOR_TYPES[
-                self._type
-            ].get("unit")
-        return SENSOR_TYPES[self._type].get("unit")
+        return SENSOR_TYPES[self._type].get("unit_metric")
 
     @property
     def icon(self):
