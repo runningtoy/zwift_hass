@@ -1,10 +1,11 @@
 {
   "domain": "zwift",
   "name": "Zwift Sensor",
-  "documentation": "https://github.com/snicker/zwift_hass/blob/master/README.md",
+  "documentation": "https://github.com/johnerickson/ha-zwift_hass/blob/master/README.md",
   "requirements": ["zwift-client==0.2.0"],
   "dependencies": [],
   "version": "3.3.3",
-  "codeowners": ["@snicker"],
+  "integration_type": "hub",
+  "codeowners": ["@johnerickson"],
   "iot_class": "cloud_polling"
 }

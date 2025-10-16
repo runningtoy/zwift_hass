@@ -24,13 +24,16 @@ from datetime import timedelta
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components.sensor import PLATFORM_SCHEMA
-from homeassistant.const import (CONF_NAME, CONF_PASSWORD, CONF_USERNAME,
-                                 EVENT_HOMEASSISTANT_START,
-                                 EVENT_HOMEASSISTANT_STOP)
+from homeassistant.const import (
+    CONF_NAME,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    EVENT_HOMEASSISTANT_START,
+    EVENT_HOMEASSISTANT_STOP,
+)
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import SERVER_SOFTWARE
-from homeassistant.helpers.dispatcher import (async_dispatcher_connect,
-                                              dispatcher_send)
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, dispatcher_send
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import async_call_later
 
@@ -38,7 +41,7 @@ from homeassistant.helpers.event import async_call_later
 # library has not yet been updated (9/16/2023)
 from .zwift_patch import zwift_messages_pb2 as new_pb2
 
-sys.modules['zwift.zwift_messages_pb2'] = new_pb2
+sys.modules["zwift.zwift_messages_pb2"] = new_pb2
 # evil patch ends here
 
 from zwift import Client as ZwiftClient
@@ -46,42 +49,43 @@ from zwift.error import RequestException
 
 _LOGGER = logging.getLogger(__name__)
 
-REQUIREMENTS = ['zwift-client==0.2.0']
+REQUIREMENTS = ["zwift-client==0.2.0"]
 
 try:
     from homeassistant.components.binary_sensor import BinarySensorEntity
 except ImportError:
-    from homeassistant.components.binary_sensor import \
-        BinarySensorDevice as BinarySensorEntity
+    from homeassistant.components.binary_sensor import (
+        BinarySensorDevice as BinarySensorEntity,
+    )
 
-CONF_UPDATE_INTERVAL = 'update_interval'
-CONF_PLAYERS = 'players'
-CONF_INCLUDE_SELF = 'include_self'
+CONF_UPDATE_INTERVAL = "update_interval"
+CONF_PLAYERS = "players"
+CONF_INCLUDE_SELF = "include_self"
 
-DATA_ZWIFT = 'zwift'
+DATA_ZWIFT = "zwift"
 
-DEFAULT_NAME = 'Zwift'
+DEFAULT_NAME = "Zwift"
 
-SIGNAL_ZWIFT_UPDATE = 'zwift_update_{player_id}'
+SIGNAL_ZWIFT_UPDATE = "zwift_update_{player_id}"
 
-EVENT_ZWIFT_RIDE_ON = 'zwift_ride_on'
+EVENT_ZWIFT_RIDE_ON = "zwift_ride_on"
 
 ZWIFT_IGNORED_PROFILE_ATTRIBUTES = [
-    'privateAttributes',
-    'publicAttributes',
-    'connectedToStrava',
-    'connectedToTrainingPeaks',
-    'connectedToTodaysPlan',
-    'connectedToUnderArmour',
-    'connectedToWithings',
-    'connectedToFitbit',
-    'connectedToGarmin',
-    'connectedToRuntastic',
-    'mixpanelDistinctId',
-    'bigCommerceId',
-    'avantlinkId',
-    'userAgent',
-    'launchedGameClient'
+    "privateAttributes",
+    "publicAttributes",
+    "connectedToStrava",
+    "connectedToTrainingPeaks",
+    "connectedToTodaysPlan",
+    "connectedToUnderArmour",
+    "connectedToWithings",
+    "connectedToFitbit",
+    "connectedToGarmin",
+    "connectedToRuntastic",
+    "mixpanelDistinctId",
+    "bigCommerceId",
+    "avantlinkId",
+    "userAgent",
+    "launchedGameClient",
 ]
 
 ZWIFT_WORLDS = {
@@ -95,32 +99,56 @@ ZWIFT_WORLDS = {
     8: "Crit City",
     9: "Makuri Islands",
     10: "France",
-    11: "Paris"
+    11: "Paris",
 }
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_USERNAME): cv.string,
-    vol.Required(CONF_PASSWORD): cv.string,
-    vol.Optional(CONF_PLAYERS, default=[]): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional(CONF_INCLUDE_SELF, default=True): cv.boolean,
-    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-    vol.Optional(CONF_UPDATE_INTERVAL, default=timedelta(seconds=15)): (
-        vol.All(cv.time_period, cv.positive_timedelta)),
-})
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Required(CONF_USERNAME): cv.string,
+        vol.Required(CONF_PASSWORD): cv.string,
+        vol.Optional(CONF_PLAYERS, default=[]): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(CONF_INCLUDE_SELF, default=True): cv.boolean,
+        vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+        vol.Optional(CONF_UPDATE_INTERVAL, default=timedelta(seconds=15)): (
+            vol.All(cv.time_period, cv.positive_timedelta)
+        ),
+    }
+)
 
 SENSOR_TYPES = {
-    'online': {'name': 'Online', 'binary': True, 'device_class': 'connectivity', 'icon': 'mdi:radio-tower'},
-    'hr': {'name': 'Heart Rate', 'unit': 'bpm',  'icon': 'mdi:heart-pulse'},
-    'speed': {'name': 'Speed', 'unit': 'mph', 'unit_metric': 'kmh', 'icon': 'mdi:speedometer'},
-    'cadence': {'name': 'Cadence', 'unit': 'rpm', 'icon': 'mdi:rotate-right'},
-    'power': {'name': 'Power', 'unit': 'W', 'icon': 'mdi:flash'},
-    'altitude': {'name': 'Altitude', 'unit': 'ft', 'unit_metric': 'cm', 'icon': 'mdi:altimeter'},
-    'distance': {'name': 'Distance', 'unit': 'miles', 'unit_metric': 'm', 'icon': 'mdi:arrow-expand-horizontal'},
-    'gradient': {'name': 'Gradient', 'unit': '%', 'icon': 'mdi:image-filter-hdr'},
-    'level': {'name': 'Level', 'icon': 'mdi:stairs'},
-    'runlevel': {'name': 'Run Level', 'icon': 'mdi:run-fast'},
-    'cycleprogress': {'name': 'Cycle Progress', 'unit': '%', 'icon': 'mdi:transfer-right'},
-    'runprogress': {'name': 'Run Progress', 'unit': '%', 'icon': 'mdi:transfer-right'},
+    "online": {
+        "name": "Online",
+        "binary": True,
+        "device_class": "connectivity",
+        "icon": "mdi:radio-tower",
+    },
+    "hr": {"name": "Heart Rate", "unit": "bpm", "icon": "mdi:heart-pulse"},
+    "speed": {
+        "name": "Speed",
+        "unit_metric": "kmh",
+        "icon": "mdi:speedometer",
+    },
+    "cadence": {"name": "Cadence", "unit": "rpm", "icon": "mdi:rotate-right"},
+    "power": {"name": "Power", "unit": "W", "icon": "mdi:flash"},
+    "altitude": {
+        "name": "Altitude",
+        "unit_metric": "cm",
+        "icon": "mdi:altimeter",
+    },
+    "distance": {
+        "name": "Distance",
+        "unit_metric": "m",
+        "icon": "mdi:arrow-expand-horizontal",
+    },
+    "gradient": {"name": "Gradient", "unit": "%", "icon": "mdi:image-filter-hdr"},
+    "level": {"name": "Level", "icon": "mdi:stairs"},
+    "runlevel": {"name": "Run Level", "icon": "mdi:run-fast"},
+    "cycleprogress": {
+        "name": "Cycle Progress",
+        "unit": "%",
+        "icon": "mdi:transfer-right",
+    },
+    "runprogress": {"name": "Run Progress", "unit": "%", "icon": "mdi:transfer-right"},
 }
 
 
@@ -138,12 +166,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     try:
         await zwift_data._connect()
     except:
-        _LOGGER.exception(
-            "Could not create Zwift sensor named '{}'!".format(name))
+        _LOGGER.exception("Could not create Zwift sensor named '{}'!".format(name))
         return
 
     if include_self:
-        zwift_data.add_tracked_player(zwift_data._profile.get('id'))
+        zwift_data.add_tracked_player(zwift_data._profile.get("id"))
 
     async def update_data(now):
         if zwift_data._client is None:
@@ -154,23 +181,25 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         if zwift_data.any_players_online:
             next_update = zwift_data.online_update_interval
 
-        async_call_later(
-            hass,
-            next_update.total_seconds(),
-            update_data
-        )
+        async_call_later(hass, next_update.total_seconds(), update_data)
 
     await update_data(None)
 
     dev = []
     for player_id in zwift_data.players:
         for variable in SENSOR_TYPES:
-            if SENSOR_TYPES[variable].get('binary'):
-                dev.append(ZwiftBinarySensorDevice(name, zwift_data,
-                           zwift_data.players[player_id], variable))
+            if SENSOR_TYPES[variable].get("binary"):
+                dev.append(
+                    ZwiftBinarySensorDevice(
+                        name, zwift_data, zwift_data.players[player_id], variable
+                    )
+                )
             else:
-                dev.append(ZwiftSensorDevice(name, zwift_data,
-                           zwift_data.players[player_id], variable))
+                dev.append(
+                    ZwiftSensorDevice(
+                        name, zwift_data, zwift_data.players[player_id], variable
+                    )
+                )
 
     async_add_entities(dev, True)
 
@@ -184,8 +213,15 @@ class ZwiftSensorDevice(Entity):
         self._type = sensor_type
         self._state = None
         self._attrs = {}
-        self._unique_id = "{}_{}_{}".format(self._base_name, SENSOR_TYPES[self._type].get(
-            'name'), self._player.player_id).replace(" ", "").lower()
+        self._unique_id = (
+            "{}_{}_{}".format(
+                self._base_name,
+                SENSOR_TYPES[self._type].get("name"),
+                self._player.player_id,
+            )
+            .replace(" ", "")
+            .lower()
+        )
 
     @property
     def unique_id(self):
@@ -195,12 +231,20 @@ class ZwiftSensorDevice(Entity):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return "{} {} ({})".format(self._base_name, SENSOR_TYPES[self._type].get('name'), self._player.player_id)
+        return "{} {} ({})".format(
+            self._base_name,
+            SENSOR_TYPES[self._type].get("name"),
+            self._player.player_id,
+        )
 
     @property
     def friendly_name(self):
         """Return the friendly name of the sensor."""
-        return "{} {} ({})".format(self._base_name, SENSOR_TYPES[self._type].get('name'), self._player.friendly_player_id)
+        return "{} {} ({})".format(
+            self._base_name,
+            SENSOR_TYPES[self._type].get("name"),
+            self._player.friendly_player_id,
+        )
 
     @property
     def extra_state_attributes(self):
@@ -215,30 +259,33 @@ class ZwiftSensorDevice(Entity):
     @property
     def unit_of_measurement(self):
         """Return the unit this state is expressed in."""
-        if self._zwift_data.is_metric:
-            return SENSOR_TYPES[self._type].get('unit_metric') or SENSOR_TYPES[self._type].get('unit')
-        return SENSOR_TYPES[self._type].get('unit')
+        return SENSOR_TYPES[self._type].get("unit_metric")
 
     @property
     def icon(self):
-        return SENSOR_TYPES[self._type].get('icon')
+        return SENSOR_TYPES[self._type].get("icon")
 
     def update(self):
         """Get the latest data from the sensor."""
         self._state = getattr(self._player, self._type)
-        if self._type == 'online':
+        if self._type == "online":
             p = self._player.player_profile
             self._attrs.update(
-                {k: p[k] for k in p if k not in ZWIFT_IGNORED_PROFILE_ATTRIBUTES})
+                {k: p[k] for k in p if k not in ZWIFT_IGNORED_PROFILE_ATTRIBUTES}
+            )
 
     async def async_added_to_hass(self):
         """Register update signal handler."""
+
         async def async_update_state():
             """Update sensor state."""
             await self.async_update_ha_state(True)
 
-        async_dispatcher_connect(self.hass, SIGNAL_ZWIFT_UPDATE.format(
-            player_id=self._player.player_id), async_update_state)
+        async_dispatcher_connect(
+            self.hass,
+            SIGNAL_ZWIFT_UPDATE.format(player_id=self._player.player_id),
+            async_update_state,
+        )
 
 
 class ZwiftBinarySensorDevice(ZwiftSensorDevice, BinarySensorEntity):
@@ -250,7 +297,7 @@ class ZwiftBinarySensorDevice(ZwiftSensorDevice, BinarySensorEntity):
     @property
     def device_class(self):
         """Return the device class of the binary sensor."""
-        return SENSOR_TYPES[self._type].get('device_class')
+        return SENSOR_TYPES[self._type].get("device_class")
 
 
 class ZwiftPlayerData:
@@ -265,55 +312,55 @@ class ZwiftPlayerData:
 
     @property
     def friendly_player_id(self):
-        return self.player_profile.get('firstName') or self.player_id
+        return self.player_profile.get("firstName") or self.player_id
 
     @property
     def online(self):
-        return self.data.get('online', False)
+        return self.data.get("online", False)
 
     @property
     def hr(self):
-        return round(self.data.get('heartrate', 0.0), 0)
+        return round(self.data.get("heartrate", 0.0), 0)
 
     @property
     def speed(self):
-        return round(self.data.get('speed', 0.0), 0)
+        return round(self.data.get("speed", 0.0), 0)
 
     @property
     def cadence(self):
-        return round(self.data.get('cadence', 0.0), 0)
+        return round(self.data.get("cadence", 0.0), 0)
 
     @property
     def power(self):
-        return round(self.data.get('power', 0.0), 0)
+        return round(self.data.get("power", 0.0), 0)
 
     @property
     def altitude(self):
-        return round(self.data.get('altitude', 0.0), 1)
+        return round(self.data.get("altitude", 0.0), 1)
 
     @property
     def distance(self):
-        return self.data.get('distance', 0.0)
+        return self.data.get("distance", 0.0)
 
     @property
     def gradient(self):
-        return round(self.data.get('gradient', 0.0), 1)
+        return round(self.data.get("gradient", 0.0), 1)
 
     @property
     def level(self):
-        return self.player_profile.get('playerLevel', None)
+        return self.player_profile.get("playerLevel", None)
 
     @property
     def runlevel(self):
-        return self.player_profile.get('runLevel', None)
+        return self.player_profile.get("runLevel", None)
 
     @property
     def cycleprogress(self):
-        return self.player_profile.get('cycleProgress', None)
+        return self.player_profile.get("cycleProgress", None)
 
     @property
     def runprogress(self):
-        return self.player_profile.get('runProgress', None)
+        return self.player_profile.get("runProgress", None)
 
 
 class ZwiftData:
@@ -341,22 +388,26 @@ class ZwiftData:
         return sum([p.online for p in self.players.values()]) > 0
 
     async def check_zwift_auth(self, client):
-        token = await self.hass.async_add_executor_job(client.auth_token.fetch_token_data)
-        if 'error' in token:
+        token = await self.hass.async_add_executor_job(
+            client.auth_token.fetch_token_data
+        )
+        if "error" in token:
             raise Exception("Zwift authorization failed: {}".format(token))
         return True
 
     @property
     def is_metric(self):
         if self._profile:
-            return self._profile.get('useMetric', False)
+            return self._profile.get("useMetric", False)
         return False
 
     async def _connect(self):
         client = ZwiftClient(self.username, self.password)
         if await self.check_zwift_auth(client):
             self._client = client
-            self._profile = await self.hass.async_add_executor_job(self._get_self_profile)
+            self._profile = await self.hass.async_add_executor_job(
+                self._get_self_profile
+            )
             return self._client
 
     def _get_self_profile(self):
@@ -369,88 +420,111 @@ class ZwiftData:
                 data = {}
                 online_player = {}
                 try:
-
                     _profile = self._client.get_profile(player_id)
                     player_profile = _profile.profile or {}
-                    _LOGGER.debug(
-                        "Zwift profile data: {}".format(player_profile))
-                    total_experience = int(
-                        player_profile.get('totalExperiencePoints'))
-                    player_profile['playerLevel'] = int(
-                        player_profile.get('achievementLevel', 0) / 100)
-                    player_profile['runLevel'] = int(
-                        player_profile.get('runAchievementLevel', 0) / 100)
-                    player_profile['cycleProgress'] = int(
-                        player_profile.get('achievementLevel', 0) % 100)
-                    player_profile['runProgress'] = int(
-                        player_profile.get('runAchievementLevel', 0) % 100)
+                    _LOGGER.debug("Zwift profile data: {}".format(player_profile))
+                    total_experience = int(player_profile.get("totalExperiencePoints"))
+                    player_profile["playerLevel"] = int(
+                        player_profile.get("achievementLevel", 0) / 100
+                    )
+                    player_profile["runLevel"] = int(
+                        player_profile.get("runAchievementLevel", 0) / 100
+                    )
+                    player_profile["cycleProgress"] = int(
+                        player_profile.get("achievementLevel", 0) % 100
+                    )
+                    player_profile["runProgress"] = int(
+                        player_profile.get("runAchievementLevel", 0) % 100
+                    )
                     latest_activity = _profile.latest_activity
-                    latest_activity['world_name'] = ZWIFT_WORLDS.get(
-                        latest_activity.get('worldId'))
-                    player_profile['latest_activity'] = latest_activity
+                    latest_activity["world_name"] = ZWIFT_WORLDS.get(
+                        latest_activity.get("worldId")
+                    )
+                    player_profile["latest_activity"] = latest_activity
 
-                    data['total_experience'] = total_experience
-                    data['level'] = player_profile['playerLevel']
-                    player_profile['world_name'] = ZWIFT_WORLDS.get(
-                        player_profile.get('worldId'))
+                    data["total_experience"] = total_experience
+                    data["level"] = player_profile["playerLevel"]
+                    player_profile["world_name"] = ZWIFT_WORLDS.get(
+                        player_profile.get("worldId")
+                    )
 
-                    if player_profile.get('riding'):
+                    if player_profile.get("riding"):
                         player_state = world.player_status(player_id)
-                        _LOGGER.debug("Zwift player state data: {}".format(
-                            player_state.player_state))
+                        _LOGGER.debug(
+                            "Zwift player state data: {}".format(
+                                player_state.player_state
+                            )
+                        )
                         # [TODO] is this correct regardless of metric/imperial? Correct regardless of world?
                         altitude = (float(player_state.altitude) - 9000) / 2
                         distance = float(player_state.distance)
-                        gradient = self.players[player_id].data.get(
-                            'gradient', 0)
-                        rideons = latest_activity.get('activityRideOnCount', 0)
-                        if rideons > 0 and rideons > self.players[player_id].data.get('rideons', 0):
-                            self.hass.bus.fire(EVENT_ZWIFT_RIDE_ON, {
-                                'player_id': player_id,
-                                'rideons': rideons
-                            })
-                        if self.players[player_id].data.get('distance', 0) > 0:
-                            delta_distance = distance - \
-                                self.players[player_id].data.get('distance', 0)
-                            delta_altitude = altitude - \
-                                self.players[player_id].data.get('altitude', 0)
+                        gradient = self.players[player_id].data.get("gradient", 0)
+                        rideons = latest_activity.get("activityRideOnCount", 0)
+                        if rideons > 0 and rideons > self.players[player_id].data.get(
+                            "rideons", 0
+                        ):
+                            self.hass.bus.fire(
+                                EVENT_ZWIFT_RIDE_ON,
+                                {"player_id": player_id, "rideons": rideons},
+                            )
+                        if self.players[player_id].data.get("distance", 0) > 0:
+                            delta_distance = distance - self.players[
+                                player_id
+                            ].data.get("distance", 0)
+                            delta_altitude = altitude - self.players[
+                                player_id
+                            ].data.get("altitude", 0)
                             if delta_distance > 0:
                                 gradient = delta_altitude / delta_distance
-                        data.update({
-                            'online': True,
-                            'heartrate': int(float(player_state.heartrate)),
-                            'cadence': int(float(player_state.cadence)),
-                            'power': int(float(player_state.power)),
-                            'speed': player_state.speed / 1000000.0,
-                            'altitude': altitude,
-                            'distance': distance,
-                            'gradient': gradient,
-                            'rideons': rideons
-                        })
+                        data.update(
+                            {
+                                "online": True,
+                                "heartrate": int(float(player_state.heartrate)),
+                                "cadence": int(float(player_state.cadence)),
+                                "power": int(float(player_state.power)),
+                                "speed": player_state.speed / 1000000.0,
+                                "altitude": altitude,
+                                "distance": distance,
+                                "gradient": gradient,
+                                "rideons": rideons,
+                            }
+                        )
                     online_player.update(player_profile)
                     self.players[player_id].player_profile = online_player
                     self.players[player_id].data = data
                 except RequestException as e:
-                    if '401' in str(e):
+                    if "401" in str(e):
                         self._client = None
-                        _LOGGER.warning(
-                            'Zwift credentials are wrong or expired')
-                    elif '404' in str(e):
-                        _LOGGER.warning('Upstream Zwift 404 - will try later')
-                    elif '429' in str(e):
+                        _LOGGER.warning("Zwift credentials are wrong or expired")
+                    elif "404" in str(e):
+                        _LOGGER.warning("Upstream Zwift 404 - will try later")
+                    elif "429" in str(e):
                         current_interval = self.online_update_interval
-                        new_interval = self.online_update_interval + \
-                            timedelta(seconds=0.25)
+                        new_interval = self.online_update_interval + timedelta(
+                            seconds=0.25
+                        )
                         self.online_update_interval = new_interval
-                        _LOGGER.warning('Upstream request throttling 429 - known issue, increasing interval from {}s to {}s'.format(
-                            current_interval.total_seconds(), new_interval.total_seconds()))
+                        _LOGGER.warning(
+                            "Upstream request throttling 429 - known issue, increasing interval from {}s to {}s".format(
+                                current_interval.total_seconds(),
+                                new_interval.total_seconds(),
+                            )
+                        )
                     else:
                         _LOGGER.exception(
-                            'something went wrong in Zwift python library - {} while updating zwift sensor for player {}'.format(str(e), player_id))
+                            "something went wrong in Zwift python library - {} while updating zwift sensor for player {}".format(
+                                str(e), player_id
+                            )
+                        )
                 except Exception as e:
                     _LOGGER.exception(
-                        'something went major wrong while updating zwift sensor for player {}'.format(player_id))
+                        "something went major wrong while updating zwift sensor for player {}".format(
+                            player_id
+                        )
+                    )
                 _LOGGER.debug(
-                    "dispatching zwift data update for player {}".format(player_id))
+                    "dispatching zwift data update for player {}".format(player_id)
+                )
                 dispatcher_send(
-                    self.hass, SIGNAL_ZWIFT_UPDATE.format(player_id=player_id))
+                    self.hass, SIGNAL_ZWIFT_UPDATE.format(player_id=player_id)
+                )
