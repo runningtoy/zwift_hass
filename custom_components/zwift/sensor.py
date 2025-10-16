@@ -116,39 +116,22 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 SENSOR_TYPES = {
-    "online": {
-        "name": "Online",
-        "binary": True,
-        "device_class": "connectivity",
-        "icon": "mdi:radio-tower",
-    },
-    "hr": {"name": "Heart Rate", "unit": "bpm", "icon": "mdi:heart-pulse"},
-    "speed": {
-        "name": "Speed",
-        "unit_metric": "kmh",
-        "icon": "mdi:speedometer",
-    },
-    "cadence": {"name": "Cadence", "unit": "rpm", "icon": "mdi:rotate-right"},
-    "power": {"name": "Power", "unit": "W", "icon": "mdi:flash"},
-    "altitude": {
-        "name": "Altitude",
-        "unit_metric": "cm",
-        "icon": "mdi:altimeter",
-    },
-    "distance": {
-        "name": "Distance",
-        "unit_metric": "m",
-        "icon": "mdi:arrow-expand-horizontal",
-    },
-    "gradient": {"name": "Gradient", "unit": "%", "icon": "mdi:image-filter-hdr"},
-    "level": {"name": "Level", "icon": "mdi:stairs"},
-    "runlevel": {"name": "Run Level", "icon": "mdi:run-fast"},
-    "cycleprogress": {
-        "name": "Cycle Progress",
-        "unit": "%",
-        "icon": "mdi:transfer-right",
-    },
-    "runprogress": {"name": "Run Progress", "unit": "%", "icon": "mdi:transfer-right"},
+    'online': {'name': 'Online', 'binary': True, 'device_class': 'connectivity', 'icon': 'mdi:radio-tower'},
+    'hr': {'name': 'Heart Rate', 'unit': 'bpm',  'icon': 'mdi:heart-pulse'},
+    'speed': {'name': 'Speed', 'unit': 'mph', 'unit_metric': 'kmh', 'icon': 'mdi:speedometer'},
+    'cadence': {'name': 'Cadence', 'unit': 'rpm', 'icon': 'mdi:rotate-right'},
+    'power': {'name': 'Power', 'unit': 'W', 'icon': 'mdi:flash'},
+    'altitude': {'name': 'Altitude', 'unit': 'ft', 'unit_metric': 'm', 'icon': 'mdi:altimeter'},
+    'distance': {'name': 'Distance', 'unit': 'miles', 'unit_metric': 'm', 'icon': 'mdi:arrow-expand-horizontal'},
+    'gradient': {'name': 'Gradient', 'unit': '%', 'icon': 'mdi:image-filter-hdr'},
+    'level': {'name': 'Level', 'icon': 'mdi:stairs'},
+    'runlevel': {'name': 'Run Level', 'icon': 'mdi:run-fast'},
+    'ftp': {'name': 'FTP Setting', 'unit': 'W', 'icon': 'mdi:level-up'},
+    'zftp': {'name': 'Current zFTP level', 'unit': 'W', 'icon': 'mdi:level-up'},
+    'zmap': {'name': 'Current zMap level', 'unit': 'mL', 'icon': 'mdi:level-up'},
+    'vo2max': {'name': 'Current VO2max level', 'unit': 'mL', 'icon': 'mdi:level-up'},
+    'cycleprogress': {'name': 'Cycle Progress', 'unit': '%', 'icon': 'mdi:transfer-right'},
+    'runprogress': {'name': 'Run Progress', 'unit': '%', 'icon': 'mdi:transfer-right'},
 }
 
 
@@ -355,6 +338,38 @@ class ZwiftPlayerData:
         return self.player_profile.get("runLevel", None)
 
     @property
+    def ftp(self):
+        return self.player_profile.get('ftp', None)
+
+    @property
+    def zftp(self):
+        return self.player_profile.get('zftp', None)
+
+    @property
+    def zmap(self):
+        return self.player_profile.get('zmap', None)
+
+    @property
+    def vo2max(self):
+        return self.player_profile.get('vo2max', None)
+
+    @property
+    def ftp(self):
+        return self.player_profile.get('ftp', None)
+
+    @property
+    def zftp(self):
+        return self.player_profile.get('zftp', None)
+
+    @property
+    def zmap(self):
+        return self.player_profile.get('zmap', None)
+
+    @property
+    def vo2max(self):
+        return self.player_profile.get('vo2max', None)
+
+    @property
     def cycleprogress(self):
         return self.player_profile.get("cycleProgress", None)
 
@@ -420,22 +435,30 @@ class ZwiftData:
                 data = {}
                 online_player = {}
                 try:
+
+                    from zwift.request import Request
+                    _request = Request(self._client.auth_token.get_access_token)
+                    power_profile = _request.json('/api/power-curve/power-profile')
+
+
                     _profile = self._client.get_profile(player_id)
                     player_profile = _profile.profile or {}
-                    _LOGGER.debug("Zwift profile data: {}".format(player_profile))
-                    total_experience = int(player_profile.get("totalExperiencePoints"))
-                    player_profile["playerLevel"] = int(
-                        player_profile.get("achievementLevel", 0) / 100
-                    )
-                    player_profile["runLevel"] = int(
-                        player_profile.get("runAchievementLevel", 0) / 100
-                    )
-                    player_profile["cycleProgress"] = int(
-                        player_profile.get("achievementLevel", 0) % 100
-                    )
-                    player_profile["runProgress"] = int(
-                        player_profile.get("runAchievementLevel", 0) % 100
-                    )
+                    _LOGGER.debug(
+                        "Zwift profile data: {}".format(player_profile))
+                    total_experience = int(
+                        player_profile.get('totalExperiencePoints'))
+                    player_profile['playerLevel'] = int(
+                        player_profile.get('achievementLevel', 0) / 100)
+                    player_profile['ftp'] = int(player_profile.get('ftp', 0))
+                    player_profile['zftp'] = int(power_profile.get('zftp', 0))
+                    player_profile['zmap'] = int(power_profile.get('zmap', 0))
+                    player_profile['vo2max'] = int(power_profile.get('vo2max', 0))
+                    player_profile['runLevel'] = int(
+                        player_profile.get('runAchievementLevel', 0) / 100)
+                    player_profile['cycleProgress'] = int(
+                        player_profile.get('achievementLevel', 0) % 100)
+                    player_profile['runProgress'] = int(
+                        player_profile.get('runAchievementLevel', 0) % 100)
                     latest_activity = _profile.latest_activity
                     latest_activity["world_name"] = ZWIFT_WORLDS.get(
                         latest_activity.get("worldId")
